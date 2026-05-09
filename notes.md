@@ -16,3 +16,23 @@ There are leading blank space lines when we printed Page 5 of the document, That
 These are few observations that can be used to fix the accurancy of the system. 
 
 The TOC has dotted lines which does'nt have meaning. Hence this embedded can not be that useful. This is something that needs to be noted for further changes in the future. 
+
+
+
+
+# Session 2: Chunking
+
+The PDF that we have has 180 pages of text. Now we cant embed the whole document - this would produce a simply 1 fat vector. But we will have to embedd into smalled pieces called chunks, that captures the meaning. 
+
+Here is the thing:
+The chunks can not be too small like of 100chars as they might loose information. Or too big for e.g. 5000 characters which will be blurry average of the topics.  Like what we are trying to ask might be diluted in the real meaning of the long context. 
+Hence, one coherent idea per chunk, like for regulatiuon document like this we can take 1 clause or 1 paragraph as a starting. 
+
+Overlap: This is crucial, now if we are taking a 1 paragraph in 1 chunck it might have some more information about a topic in its subsequent pragraph. Hence we need to chunk them in a way that they overlap informaion. This way we will have information covered. 
+
+This is what a Character based chunker is about. Cutting sentences mid-word, spilit tebles. 
+
+Whle reading through chunks, here are some of the known issues that we found:
+-  Frmont matter pollution  - Mainly onlu has the heading whihc is a noise
+- Too much shite spae heavy chunks - jsut oene line of text, but there a full blank page.
+- Page boundry content splits. TOC pollution with dotted lines, number etc. 
