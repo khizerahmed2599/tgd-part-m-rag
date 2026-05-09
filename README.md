@@ -1,22 +1,40 @@
 # TGD Part M RAG
 
-A retrieval-augmented generation system over Ireland's TGD Part M
-(Disability Access regulations), built as a learning project to deepen
-expertise in production RAG.
+A retrieval-augmented generation system over Ireland's Technical Guidance
+Document M (Access and Use, 2022) — the regulation that governs
+disability-access compliance in Irish buildings.
+
+## What it does
+
+Given a question about Part M (e.g., *"What is the minimum corridor
+width for wheelchair access?"*), the system:
+
+1. Embeds the question and retrieves the top-5 most relevant clauses
+   from the regulation using BGE-small + FAISS.
+2. Sends the clauses + question to Gemini 2.5 Flash with a constrained
+   prompt that requires inline citations.
+3. Returns a grounded answer that cites chunk IDs and page numbers.
+
+If the regulation doesn't contain the answer, the system says so
+explicitly rather than fabricating one. Off-topic questions are
+politely refused.
+
+## Architecture
+
+See [`docs/REFERENCE.md`](docs/REFERENCE.md) for a full technical
+walkthrough of every stage and the design decisions behind it.
 
 ## Status
 
-🚧 Work in progress — currently building baseline pipeline.
+- [x] Baseline pipeline (extract → chunk → embed → retrieve → generate)
+- [x] Refusal pathway (off-topic and unanswerable questions)
+- [ ] Evaluation harness — coming next
+- [ ] Reranking, hybrid search, structure-aware chunking — measured against eval set
 
 ## Setup
 
-1. Clone the repo
-2. Create a virtual environment: `python -m venv venv`
-3. Activate it (Windows PowerShell): `venv\Scripts\Activate.ps1`
-4. Install dependencies: `pip install -r requirements.txt`
-5. Copy `.env.example` to `.env` and add your Gemini API key
-6. Place TGD Part M PDF in `data/` (see `data/README.md`)
+(your existing setup steps)
 
-## Project structure
+## Running
 
-(to be added as the project grows)
+```bash
