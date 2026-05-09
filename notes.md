@@ -527,6 +527,8 @@ The final stage takes `query + retrieved_chunks` and asks an LLM
 
 ### Prompt structure
 
+This where the magic lies, the model understands based on the instructions given to it. There are further details on how to design this mentioned.
+
 ```
 SYSTEM:
 You are an assistant for compliance with TGD Part M (Ireland's
