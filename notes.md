@@ -14,3 +14,5 @@ For examples lines such as 1.6.5 Lighting ......................................
 There are leading blank space lines when we printed Page 5 of the document, That's not a print formatting artifact — it's literally in the extracted text. PDFs often have lots of vertical whitespace (margins, headers, line spacing) that turns into newlines and spaces in the extracted text. This adds noise to embeddings without contributing meaning.
 
 These are few observations that can be used to fix the accurancy of the system. 
+
+The TOC has dotted lines which does'nt have meaning. Hence this embedded can not be that useful. This is something that needs to be noted for further changes in the future. 
