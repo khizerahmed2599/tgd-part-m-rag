@@ -8,3 +8,4 @@ data/*.pdf
 *.egg-info/
 .pytest_cache/
 data/chunks.json
+helpers.md
