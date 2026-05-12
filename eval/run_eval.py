@@ -10,8 +10,8 @@ from statistics import mean
 import faiss
 from sentence_transformers import SentenceTransformer
 
-# Wew will need to import the retrival.py module. 
-from retrieval import MODEL_NAME, retrieve
+# We will need to import the retrival.py module. 
+from src.retrieval import MODEL_NAME, retrieve
 
 from dotenv import load_dotenv
 load_dotenv()
