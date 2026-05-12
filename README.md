@@ -93,13 +93,31 @@ This makes it possible to compare runs over time (e.g., before/after adding a re
 
 ![LangFuse trace view](docs/img/langfuse_traces.png)
 
+## Docker
+
+The eval harness and (placeholder) API server are containerized via a multi-mode Dockerfile. The image:
+
+- Bakes the BGE-small model into the image to avoid runtime downloads
+- Layers ordered so code edits trigger ~10s rebuilds, not full dependency reinstalls
+- Secrets injected at runtime via `--env-file .env` — never baked into the image
+- Eval results inside the container match local exactly (Hit Rate 0.880, Recall 0.807, MRR 0.576)
+
+Run the eval inside the container:
+
+```bash
+docker build -t tgd-part-m-rag .
+docker run --rm --env-file .env tgd-part-m-rag
+```
+
+This is the same image GitHub Actions will run on every PR (Day 4 of the sprint).
+
 ## Roadmap
 
 - [x] Baseline pipeline (extract → chunk → embed → retrieve → generate)
 - [x] Refusal pathway (off-topic and unanswerable questions)
 - [x] Evaluation harness with 33-question ground-truth set
 - [x] Observability via LangFuse (per-query traces, scored metrics, session grouping)
-- [ ] Containerization (Docker)
+- [x] Containerization (Docker)
 - [ ] CI/CD with regression-gated eval (GitHub Actions)
 - [ ] Measured improvement: hybrid search OR cross-encoder reranker — chosen based on eval evidence
 
@@ -131,16 +149,20 @@ cp .env.example .env
 
 ```bash
 # 1. Build the index (one-time; assumes data/TGD_Part_M.pdf is present)
-python src/extract_pdf.py
-python src/chunk_text.py
-python src/build_index.py
+python -m src.extract_pdf
+python -m src.chunk_text
+python -m src.build_index
 
 # 2. Ask a question
-python src/main.py "What is the minimum corridor width for wheelchair access?"
+python -m src.main "What is the minimum corridor width for wheelchair access?"
 
 # 3. Run the eval harness
-python eval/run_eval.py                  # default top_k=10
-python eval/run_eval.py --top-k 5        # vary parameters
+python -m eval.run_eval                  # default top_k=10
+python -m eval.run_eval --top-k 5        # vary parameters
+
+# OR: run the eval inside Docker (matches CI exactly)
+docker build -t tgd-part-m-rag .
+docker run --rm --env-file .env tgd-part-m-rag
 ```
 
 Results are written to `eval/results/<timestamp>_<git_sha>.json` and traced in LangFuse.
@@ -159,6 +181,8 @@ Results are written to `eval/results/<timestamp>_<git_sha>.json` and traced in L
 │   ├── baseline_walkthrough.docx   System architecture + design decisions
 │   ├── eval_findings_day1.docx     What the eval measured and what to fix
 │   └── img/                        README screenshots
+├── Dockerfile                      Multi-mode image (eval default, api stub)
+├── docker-entrypoint.sh            Routes `eval` vs `api` modes
+├── .dockerignore                   Excludes venv, secrets, build artifacts
 ├── .env.example
-└── requirements.txt
-```
+└── requirements.txt 
