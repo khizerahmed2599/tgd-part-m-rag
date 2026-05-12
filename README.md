@@ -91,7 +91,7 @@ Every eval run is traced in LangFuse. Each question becomes a trace with:
 
 This makes it possible to compare runs over time (e.g., before/after adding a reranker) and drill into specific question failures.
 
-![LangFuse trace view](docs/img/langfuse_traces.png)
+[![LangFuse trace view](docs/img/langfuse_traces.png)](https://github.com/khizerahmed2599/tgd-part-m-rag/blob/main/data/img/langfuse_traces.png?raw=true)
 
 ## Roadmap
 
