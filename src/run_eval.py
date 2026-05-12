@@ -13,6 +13,11 @@ from sentence_transformers import SentenceTransformer
 # Wew will need to import the retrival.py module. 
 from retrieval import MODEL_NAME, retrieve
 
+from dotenv import load_dotenv
+load_dotenv()
+from langfuse import Langfuse
+
+
 
 def load_questions(path: str) -> list[dict]:
     with open(path, 'r', encoding='utf-8') as f:
@@ -182,6 +187,7 @@ def print_failures(per_query: list[dict]) -> None:
         print(f"     got top-3: {top3}")
 
 def main():
+    
     parser = argparse.ArgumentParser(description="Retrieval eval harness.")
     parser.add_argument("--questions", default="eval/questions.jsonl",
                         help="Path to questions JSONL file.")
@@ -194,7 +200,7 @@ def main():
     parser.add_argument("--out-dir", default="eval/results",
                         help="Where to write the results JSON.")
     args = parser.parse_args()
- 
+    
     print(f"Loading questions from {args.questions}")
     questions = load_questions(args.questions)
     print(f"  -> {len(questions)} questions")
@@ -208,12 +214,45 @@ def main():
     print("  -> OK, all chunk_ids resolve")
  
     print(f"\nRunning {len(questions)} queries at top_k={args.top_k}...")
-    per_query = []
+
+    per_query = []   # collect detailed results for each query, to be written out and aggregated
+    git_sha = get_git_sha()
+    session_id = f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{git_sha}" # unique session ID for this run, combining timestamp and git SHA
+    # computed once
+    run_tags = [ # these tags will be attached to every trace for easy filtering in the UI
+        f"top_k:{args.top_k}",
+        f"model:{MODEL_NAME.split('/')[-1]}",  # strip the BAAI/ prefix
+        f"git_sha:{get_git_sha()}",
+        ]
+    
+    langfuse = Langfuse() # Initialize Langfuse client
+    assert langfuse.auth_check(), "Langfuse client failed to authenticate"
     for q in questions:
+        trace_tags = run_tags + [f"category:{q['category']}"] # we also tag by question category (in_scope / off_topic / in_scope_unanswerable)
+        trace = langfuse.trace(
+                        name=f"eval_{q['id']}",
+                        input=q['question'],
+                        session_id=session_id,
+                        tags=trace_tags,
+                        )
         retrieved = run_single_query(q["question"], retriever, args.top_k)
         scores = score_query(retrieved, q.get("relevant_chunk_ids", []))
+        
+        # NEW — attach scores to the trace
+        if q["category"] == "in_scope":
+            trace.score(name="hit", value=scores["hit"])
+            trace.score(name="recall", value=scores["recall"])
+            trace.score(name="rr", value=scores["rr"])
+        trace.score(name="max_score", value=scores["max_score"])
+        trace_tags = run_tags + [f"category:{q['category']}"]
+        
+        trace.update(output={
+                            "retrieved": retrieved,  # the list of {chunk_id, score, rank}
+                             "expected": q.get("relevant_chunk_ids", []),
+                         })
         per_query.append({
             "id": q["id"],
+            "trace_id": trace.id,
             "question": q["question"],
             "category": q["category"],
             "relevant_chunk_ids": q.get("relevant_chunk_ids", []),
@@ -234,6 +273,8 @@ def main():
     print_summary(metrics, args.top_k)
     print_failures(per_query)
     print(f"\nResults written to: {out_path}")
+
+    langfuse.flush()
  
  
 if __name__ == "__main__":
