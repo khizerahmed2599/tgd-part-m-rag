@@ -9,3 +9,4 @@ data/*.pdf
 .pytest_cache/
 data/chunks.json
 helpers.md
+eval/results/*
