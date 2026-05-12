@@ -4,3 +4,4 @@ google-genai==2.0.1
 python-dotenv==1.0.1 ## This is optional, but it allows you to load environment variables from a .env file, which can be useful for managing your API keys and other configuration settings.
 faiss-cpu==1.13.2
 retrieve==0.0.8
+langfuse==2.60.10
