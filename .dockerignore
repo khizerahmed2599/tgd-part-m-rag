@@ -1,0 +1,34 @@
+# Python
+# The venv/ line is the biggest win in practice. Without it, Docker tries to copy hundreds of MB of Python packages that the container is going to install fresh anyway.
+venv/   
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Environment + secrets
+# .env is the critical line — this is the file with your GEMINI_API_KEY, LANGFUSE_PUBLIC_KEY, etc. If this gets baked into a public image, anyone who pulls it has your credentials. 
+.env
+.env.local
+
+# Git : .git/ — your entire commit history isn't needed at runtime. Saves a lot of space on a project that has any history.
+.git/
+.gitignore
+
+# Editor + OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Eval outputs — regenerated per run, no need to ship
+eval/results/
+
+# Docs (the image doesn't need to ship documentation)
+docs/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
