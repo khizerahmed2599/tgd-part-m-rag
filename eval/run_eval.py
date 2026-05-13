@@ -17,7 +17,10 @@ from dotenv import load_dotenv
 load_dotenv()
 from langfuse import Langfuse
 
+# Colling the reranker, which is a 
+# cross-encoder that reads the query and chunk text together and produces a relevance score.
 
+from src.reranker import load_reranker, rerank
 
 def load_questions(path: str) -> list[dict]:
     with open(path, 'r', encoding='utf-8') as f:
@@ -29,10 +32,12 @@ def load_retriever(index_path: str, metadata_path: str) -> dict:
     with open(metadata_path, 'r', encoding='utf-8') as f:
         metadata = json.load(f)
     model = SentenceTransformer(MODEL_NAME)
+    reranker = load_reranker()
     return {
         "index": index,
         "metadata": metadata,
-        "model": model
+        "model": model,
+        "reranker": reranker
     }
 
 def validate_ground_truth(questions: list[dict], metadata: list[dict]) -> None:
@@ -48,13 +53,16 @@ def validate_ground_truth(questions: list[dict], metadata: list[dict]) -> None:
 
 # Peer-query execution and scoring functions 
 def run_single_query(question: str, retriever: dict, top_k: int) -> list[dict]:
-    results = retrieve(
+    candidates = retrieve(
         question,
         retriever["index"],
         retriever["metadata"],
         retriever["model"],
-        top_k=top_k,
+        top_k=top_k*2,  # Retrieve more candidates for reranking
     )
+
+    results = rerank( question, candidates, retriever["reranker"], top_k=top_k)
+
     return [
         {"chunk_id": r["chunk_id"], "score": r["score"], "rank": i + 1}
         for i, r in enumerate(results)
