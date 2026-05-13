@@ -1,5 +1,7 @@
 # TGD Part M RAG
 
+![Eval](https://github.com/khizerahmed2599/tgd-part-m-rag/actions/workflows/eval.yml/badge.svg)
+
 A retrieval-augmented generation system over Ireland's Technical Guidance Document M (Access and Use, 2022) — the regulation that governs disability-access compliance in Irish buildings.
 
 Built to demonstrate production-engineering practices around an LLM application: evaluation harness, observability, and measured improvement against ground truth.
@@ -118,7 +120,7 @@ This is the same image GitHub Actions will run on every PR (Day 4 of the sprint)
 - [x] Evaluation harness with 33-question ground-truth set
 - [x] Observability via LangFuse (per-query traces, scored metrics, session grouping)
 - [x] Containerization (Docker)
-- [ ] CI/CD with regression-gated eval (GitHub Actions)
+- [x] CI/CD with regression-gated eval (GitHub Actions)
 - [ ] Measured improvement: hybrid search OR cross-encoder reranker — chosen based on eval evidence
 
 ## Setup
