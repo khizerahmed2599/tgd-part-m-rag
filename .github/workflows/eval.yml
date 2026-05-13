@@ -1,0 +1,44 @@
+name: Eval
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  run-eval:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t tgd-part-m-rag .
+
+      - name: Run eval in container
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+        run: |
+          mkdir -p eval/results
+          docker run --rm \
+            -e GEMINI_API_KEY \
+            -e LANGFUSE_PUBLIC_KEY \
+            -e LANGFUSE_SECRET_KEY \
+            -e LANGFUSE_HOST \
+            -v ${{ github.workspace }}/eval/results:/app/eval/results \
+            tgd-part-m-rag
+
+      - name: Check for metric regression
+        run: python3 eval/check_regression.py
+
+      - name: Upload eval results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: eval/results/
