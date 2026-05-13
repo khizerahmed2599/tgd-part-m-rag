@@ -22,6 +22,8 @@ from langfuse import Langfuse
 
 from src.reranker import load_reranker, rerank
 
+from src.hybrid import bm25_retrieve, build_bm25_index, reciprocal_rank_fusion
+
 def load_questions(path: str) -> list[dict]:
     with open(path, 'r', encoding='utf-8') as f:
         return [json.loads(line) for line in f if line.strip()]
@@ -33,11 +35,13 @@ def load_retriever(index_path: str, metadata_path: str) -> dict:
         metadata = json.load(f)
     model = SentenceTransformer(MODEL_NAME)
     reranker = load_reranker()
+    bm25=build_bm25_index(metadata)
     return {
         "index": index,
         "metadata": metadata,
         "model": model,
-        "reranker": reranker
+        "reranker": reranker,
+        "bm25": bm25,
     }
 
 def validate_ground_truth(questions: list[dict], metadata: list[dict]) -> None:
@@ -61,7 +65,13 @@ def run_single_query(question: str, retriever: dict, top_k: int) -> list[dict]:
         top_k=top_k*2,  # Retrieve more candidates for reranking
     )
 
-    results = rerank( question, candidates, retriever["reranker"], top_k=top_k)
+    sparse = bm25_retrieve(
+            question, 
+            retriever["bm25"], 
+            retriever["metadata"], 
+            top_k=top_k*2)
+    
+    results = reciprocal_rank_fusion([sparse, candidates], top_k=top_k)
 
     return [
         {"chunk_id": r["chunk_id"], "score": r["score"], "rank": i + 1}
