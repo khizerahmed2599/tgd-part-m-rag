@@ -23,6 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # # (otherwise the first container run pulls 30MB from HuggingFace, slow + needs network)
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en-v1.5')"
 
+# Pre-downlodad the reranker model
+RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
+
 #Copy application code (last, becuase this is what changes most often)
 COPY src/ ./src/
 COPY eval/ ./eval/

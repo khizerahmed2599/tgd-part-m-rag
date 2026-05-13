@@ -5,3 +5,4 @@ python-dotenv==1.0.1 ## This is optional, but it allows you to load environment 
 faiss-cpu==1.13.2
 retrieve==0.0.8
 langfuse==2.60.10
+rank-bm25==0.2.2
