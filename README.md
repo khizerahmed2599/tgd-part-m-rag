@@ -227,10 +227,6 @@ Results land in `eval/results/` (retrieval) or `eval/gen_results/` (generation),
 │   ├── gen_baseline.json        Generation metrics baseline for CI
 │   ├── results/                 Timestamped retrieval eval results
 │   └── gen_results/             Timestamped generation eval results
-├── docs/
-│   ├── baseline_walkthrough.docx   System architecture + design decisions
-│   ├── eval_findings_day1.docx     Retrieval eval findings and fix roadmap
-│   └── img/                        README screenshots
 ├── .github/workflows/eval.yml   CI — retrieval + generation gates on every PR
 ├── Dockerfile                   Multi-mode image (eval / gen-eval / api)
 ├── docker-entrypoint.sh         Routes run mode at container start
