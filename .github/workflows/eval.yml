@@ -35,6 +35,30 @@ jobs:
 
       - name: Check for metric regression
         run: python3 eval/check_regression.py
+      
+      - name: Run generation eval in container
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_JUDGE_API_KEY: ${{ secrets.GEMINI_JUDGE_API_KEY }}
+          GEMINI_JUDGE_MODEL: ${{ secrets.GEMINI_JUDGE_MODEL }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+        run: |
+          mkdir -p eval/gen_results
+          docker run --rm \
+            -e GEMINI_API_KEY \
+            -e GEMINI_JUDGE_API_KEY \
+            -e GEMINI_JUDGE_MODEL \
+            -e LANGFUSE_PUBLIC_KEY \
+            -e LANGFUSE_SECRET_KEY \
+            -e LANGFUSE_HOST \
+            -v ${{ github.workspace }}/eval/gen_results:/app/eval/gen_results \
+            tgd-part-m-rag api
+
+      - name: Check for generation metric regression
+        run: python3 eval/check_gen_regression.py
 
       - name: Upload eval results
         uses: actions/upload-artifact@v4
@@ -42,3 +66,10 @@ jobs:
         with:
           name: eval-results
           path: eval/results/
+
+      - name: Upload generation eval results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gen-eval-results
+          path: eval/gen_results/

@@ -10,6 +10,11 @@ case "$MODE" in
         exec python -m eval.run_eval "$@"
         ;;
     api)
+        echo "Running generation eval harness..."
+        shift || true
+        exec python -m eval.run_gen_eval "$@"
+        ;;
+    api)
         echo "Starting API server on port 8000..."
         shift || true
         exec python -m src.api "$@"
