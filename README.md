@@ -29,7 +29,6 @@ If the regulation does not contain the answer, the system says so explicitly rat
 
 The one remaining miss (q15, rise and going dimensions) is caused by chunk dilution — the answer is buried inside a long mixed-content chunk. Structure-aware chunking is the documented fix.
 
-Full findings: [`docs/eval_findings_day1.docx`](docs/eval_findings_day1.docx)
 
 ### Generation — LLM-as-a-Judge
 
@@ -78,8 +77,6 @@ API:
 
   src/api.py     FastAPI — POST /query, GET /health, OpenAPI docs at /docs
 ```
-
-Concept-level documentation and design decisions: [`docs/baseline_walkthrough.docx`](docs/baseline_walkthrough.docx)
 
 ## Stack
 
@@ -242,4 +239,3 @@ Results land in `eval/results/` (retrieval) or `eval/gen_results/` (generation),
 └── requirements.txt
 ```
 
-##################
