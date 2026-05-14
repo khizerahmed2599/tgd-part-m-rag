@@ -242,7 +242,4 @@ Results land in `eval/results/` (retrieval) or `eval/gen_results/` (generation),
 └── requirements.txt
 ```
 
-## Documentation
-
-- [Baseline walkthrough](docs/baseline_walkthrough.docx) — architecture, design decisions, known failure modes
-- [Day 1 eval findings](docs/eval_findings_day1.docx) — retrieval eval findings, diagnostic misses, evidence-backed fix roadmap
+##################
