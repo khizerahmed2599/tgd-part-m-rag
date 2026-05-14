@@ -6,3 +6,6 @@ faiss-cpu==1.13.2
 retrieve==0.0.8
 langfuse==2.60.10
 rank-bm25==0.2.2
+fastapi==0.136.1 
+starlette==1.0.0 
+uvicorn==0.46.0
