@@ -39,4 +39,7 @@ COPY docker-entrypoint.sh .
 RUN chmod +x docker-entrypoint.sh
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
+
+# Default mode: eval
+# Override with: docker run ... tgd-part-m-rag api
 CMD ["eval"] 

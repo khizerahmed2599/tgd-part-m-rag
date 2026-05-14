@@ -32,13 +32,14 @@ class QueryRequest(BaseModel):
         min_length=5,
         max_length=500,
         description="The compliance question to ask about TGD Part M.",
-        example="What is the minimum corridor width for wheelchair access?",
+        examples=["What is the minimum corridor width for wheelchair access?"],
     )
     top_k: int = Field(
         default=10,
         ge=1,
         le=20,
         description="Number of chunks to retrieve. Default 10, max 20.",
+        examples=[10],
     )
 
 
