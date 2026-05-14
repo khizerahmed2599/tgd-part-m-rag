@@ -4,37 +4,41 @@
 
 A retrieval-augmented generation system over Ireland's Technical Guidance Document M (Access and Use, 2022) — the regulation that governs disability-access compliance in Irish buildings.
 
-Built to demonstrate production-engineering practices around an LLM application: evaluation harness, observability, and measured improvement against ground truth.
+Built to demonstrate production-engineering practices around an LLM application: evaluation harness, measured improvement, observability, containerization, regression-gated CI/CD, and a FastAPI server.
 
 ## What it does
 
 Given a question about Part M (e.g., *"What is the minimum corridor width for wheelchair access?"*), the system:
 
-1. Embeds the question and retrieves the top-k most relevant clauses from the regulation using BGE-small + FAISS
-2. Sends the clauses + question to Gemini 2.5 Flash with a constrained prompt that requires inline citations
+1. Retrieves the top-k most relevant clauses using two-stage hybrid retrieval (BGE-small dense + BM25 sparse → Reciprocal Rank Fusion → cross-encoder reranker)
+2. Sends the ranked clauses + question to Gemini 2.5 Flash with a constrained prompt that requires inline citations
 3. Returns a grounded answer that cites chunk IDs and page numbers
 
-If the regulation doesn't contain the answer, the system says so explicitly rather than fabricating one. Off-topic questions are politely refused.
+If the regulation does not contain the answer, the system says so explicitly rather than fabricating one. Off-topic questions are politely refused.
 
-## Baseline evaluation
+## Evaluation
 
-Measured against 33 hand-curated questions (25 in-scope + 5 off-topic + 3 in-scope-unanswerable), each tagged with ground-truth chunk IDs:
+### Retrieval — measured against 33 hand-curated questions
+
+| Metric | Baseline | After reranker | After hybrid search |
+|--------|----------|----------------|---------------------|
+| Hit Rate @ 10 | 0.880 | 0.920 | **0.960** |
+| Recall @ 10 | 0.807 | 0.840 | **0.860** |
+| MRR | 0.576 | 0.676 | **0.647** |
+| In-scope misses | 3 | 2 | **1** |
+
+The one remaining miss (q15, rise and going dimensions) is caused by chunk dilution — the answer is buried inside a long mixed-content chunk. Structure-aware chunking is the documented fix.
+
+Full findings: [`docs/eval_findings_day1.docx`](docs/eval_findings_day1.docx)
+
+### Generation — LLM-as-a-Judge
+
+Evaluated using `gemini-3-flash-preview` as judge, separate from the `gemini-2.5-flash` answerer to reduce self-evaluation bias:
 
 | Metric | Value | Meaning |
 |--------|-------|---------|
-| Hit Rate @ 10 | 0.88 | At least one relevant chunk in top-10 |
-| Recall @ 10 | 0.81 | Fraction of relevant chunks retrieved |
-| MRR | 0.58 | First relevant chunk at rank ~1.7 on average |
-
-Three diagnostic in-scope misses surfaced specific failure modes:
-
-- **q07 (WC vs toilet)** — vocabulary sensitivity between regulator jargon and everyday language. Justifies hybrid search (BM25 + dense).
-- **q08 (passing places spacing)** — chunk dilution plus an adversarial near-miss conflating internal corridors with external access routes. Justifies a cross-encoder reranker.
-- **q15 (step rise and going)** — pure chunk dilution where the canonical answer scores lower than dense topical neighbours.
-
-Off-topic and in-scope-unanswerable score distributions overlap (max scores 0.46–0.67 vs 0.65–0.67), confirming refusal logic must come from the prompt rather than a similarity threshold.
-
-Full findings: [`docs/eval_findings_day1.docx`](docs/eval_findings_day1.docx)
+| Faithfulness | 1.000 | Every claim in every answer is supported by retrieved chunks |
+| Refusal accuracy | 1.000 | All off-topic and unanswerable questions correctly refused |
 
 ## Architecture
 
@@ -57,33 +61,45 @@ Query-time pipeline (per user question):
 
   User query
       │
-      ▼
-  retrieve.py        embed → normalize → FAISS top-k search
+      ├─ Stage 1a: retrieve.py   BGE-small dense → top-20 by cosine similarity
+      ├─ Stage 1b: hybrid.py     BM25 sparse → top-20 by keyword score
+      └─ Stage 1c: hybrid.py     Reciprocal Rank Fusion → top-20 fused candidates
       │
       ▼
-  generate.py        Gemini + system instruction + cited clauses
+  Stage 2: reranker.py           Cross-encoder → reordered top-10
+      │
+      ▼
+  generate.py                    Gemini 2.5 Flash + cited clauses
       │
       ▼
   Grounded answer with [chunk_id, page] citations
+
+API:
+
+  src/api.py     FastAPI — POST /query, GET /health, OpenAPI docs at /docs
 ```
 
-Concept-level documentation, design decisions, and known failure modes: [`docs/baseline_walkthrough.docx`](docs/baseline_walkthrough.docx).
+Concept-level documentation and design decisions: [`docs/baseline_walkthrough.docx`](docs/baseline_walkthrough.docx)
 
 ## Stack
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| PDF extraction | `pypdf` | Simple, sufficient for baseline; revisit with `pdfplumber` if tables become a bottleneck |
-| Chunking | Fixed-size character (600/100) | Deliberately dumb baseline; structure-aware chunking is on the roadmap |
-| Embeddings | `BAAI/bge-small-en-v1.5` | 384-dim, CPU-friendly, strong baseline for retrieval |
+| PDF extraction | `pypdf` | Simple, sufficient; revisit with `pdfplumber` if tables become a bottleneck |
+| Chunking | Fixed-size character (600/100) | Deliberate baseline; structure-aware chunking is on the roadmap |
+| Dense embeddings | `BAAI/bge-small-en-v1.5` | 384-dim, CPU-friendly, strong retrieval baseline |
+| Sparse retrieval | `BM25Okapi` (rank_bm25) | Exact keyword matching; complements dense for vocabulary gaps |
+| Fusion | Reciprocal Rank Fusion (k=60) | Merges ranked lists by rank position, avoiding score-scale incompatibility |
 | Vector index | FAISS `IndexFlatIP` | Exact search at 630 vectors; graduate to HNSW if corpus grows |
-| Generation | Gemini 2.5 Flash, `temperature=0.1` | Low randomness for factual Q&A over regulations |
+| Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Reads query + chunk together; more accurate than bi-encoder comparison |
+| Generation | Gemini 2.5 Flash, `temperature=0.1` | Low randomness for factual compliance Q&A |
+| Generation eval judge | Gemini 3 Flash Preview | LLM-as-a-judge for faithfulness and refusal accuracy scoring |
+| API | FastAPI + uvicorn | Pydantic validation, startup loading, auto-generated OpenAPI docs |
 | Observability | LangFuse v2 | Per-query traces with scores, tags, sessions |
-| Eval harness | Custom Python | 33-question ground-truth set with multi-truth chunk IDs |
 
 ## Observability
 
-Every eval run is traced in LangFuse. Each question becomes a trace with:
+Every retrieval eval run is traced in LangFuse. Each question becomes a trace with:
 
 - **Input:** question text
 - **Output:** retrieved chunks (chunk_id, score, rank) + expected ground truth
@@ -91,37 +107,46 @@ Every eval run is traced in LangFuse. Each question becomes a trace with:
 - **Tags:** `category:*`, `top_k:*`, `model:*`, `git_sha:*`
 - **Session:** one eval run = one session, all 33 traces grouped
 
-This makes it possible to compare runs over time (e.g., before/after adding a reranker) and drill into specific question failures.
+This makes it possible to compare runs over time and drill into specific question failures.
 
 ![LangFuse trace view](docs/img/langfuse_traces.png)
 
 ## Docker
 
-The eval harness and (placeholder) API server are containerized via a multi-mode Dockerfile. The image:
-
-- Bakes the BGE-small model into the image to avoid runtime downloads
-- Layers ordered so code edits trigger ~10s rebuilds, not full dependency reinstalls
-- Secrets injected at runtime via `--env-file .env` — never baked into the image
-- Eval results inside the container match local exactly (Hit Rate 0.880, Recall 0.807, MRR 0.576)
-
-Run the eval inside the container:
+Three run modes from one image:
 
 ```bash
 docker build -t tgd-part-m-rag .
-docker run --rm --env-file .env tgd-part-m-rag
+
+docker run --rm --env-file .env tgd-part-m-rag                      # retrieval eval (default)
+docker run --rm --env-file .env tgd-part-m-rag gen-eval             # generation eval
+docker run --rm --env-file .env -p 8000:8000 tgd-part-m-rag api    # API server
 ```
 
-This is the same image GitHub Actions will run on every PR (Day 4 of the sprint).
+The image pre-downloads BGE-small and cross-encoder models so there are no runtime HuggingFace downloads. Secrets are injected at runtime via `--env-file`, never baked into the image.
+
+## CI/CD
+
+GitHub Actions runs on every push to main and every PR:
+
+1. Builds the Docker image
+2. Runs retrieval eval — fails if Hit Rate, Recall, or MRR drops beyond tolerance vs `eval/baseline.json`
+3. Runs generation eval — fails if faithfulness or refusal accuracy drops vs `eval/gen_baseline.json`
+4. Uploads both result sets as downloadable artifacts
+
+The retrieval gate is hard-blocking. The generation gate uses `continue-on-error: true` so judge API unavailability never blocks the retrieval gate.
 
 ## Roadmap
 
 - [x] Baseline pipeline (extract → chunk → embed → retrieve → generate)
 - [x] Refusal pathway (off-topic and unanswerable questions)
-- [x] Evaluation harness with 33-question ground-truth set
+- [x] Retrieval evaluation harness — 33-question ground-truth set
 - [x] Observability via LangFuse (per-query traces, scored metrics, session grouping)
-- [x] Containerization (Docker)
-- [x] CI/CD with regression-gated eval (GitHub Actions)
-- [ ] Measured improvement: hybrid search OR cross-encoder reranker — chosen based on eval evidence
+- [x] Containerization (Docker, three run modes)
+- [x] CI/CD with regression-gated retrieval and generation eval (GitHub Actions)
+- [x] Two-stage retrieval — cross-encoder reranker + BM25 hybrid search
+- [x] FastAPI server with `/health` and `/query` endpoints + OpenAPI docs
+- [x] Generation eval — LLM-as-a-judge (faithfulness + refusal accuracy)
 
 ## Setup
 
@@ -140,8 +165,10 @@ pip install -r requirements.txt
 
 # Environment
 cp .env.example .env
-# Edit .env to fill in:
-#   GEMINI_API_KEY=...
+# Edit .env:
+#   GEMINI_API_KEY=...              answerer model
+#   GEMINI_JUDGE_API_KEY=...        judge model for generation eval
+#   GEMINI_JUDGE_MODEL=...          e.g. gemini-3-flash-preview
 #   LANGFUSE_PUBLIC_KEY=...
 #   LANGFUSE_SECRET_KEY=...
 #   LANGFUSE_HOST=https://cloud.langfuse.com
@@ -158,33 +185,64 @@ python -m src.build_index
 # 2. Ask a question
 python -m src.main "What is the minimum corridor width for wheelchair access?"
 
-# 3. Run the eval harness
+# 3. Run the retrieval eval
 python -m eval.run_eval                  # default top_k=10
-python -m eval.run_eval --top-k 5        # vary parameters
+python -m eval.run_eval --top-k 5
 
-# OR: run the eval inside Docker (matches CI exactly)
-docker build -t tgd-part-m-rag .
-docker run --rm --env-file .env tgd-part-m-rag
+# 4. Run the generation eval
+python -m eval.run_gen_eval
+
+# 5. Start the API server
+uvicorn src.api:app --reload
+# → GET  localhost:8000/health
+# → POST localhost:8000/query   body: {"question": "...", "top_k": 10}
+# → GET  localhost:8000/docs    interactive Swagger UI
+
+# OR run any mode in Docker (matches CI exactly)
+docker run --rm --env-file .env tgd-part-m-rag                      # retrieval eval
+docker run --rm --env-file .env tgd-part-m-rag gen-eval             # generation eval
+docker run --rm --env-file .env -p 8000:8000 tgd-part-m-rag api    # API server
 ```
 
-Results are written to `eval/results/<timestamp>_<git_sha>.json` and traced in LangFuse.
+Results land in `eval/results/` (retrieval) or `eval/gen_results/` (generation), timestamped by git SHA.
 
 ## Repo structure
 
 ```
 .
-├── src/                  Pipeline code: extract, chunk, build_index, retrieve, generate
-├── data/                 PDF + index artifacts (large files gitignored)
+├── src/
+│   ├── extract_pdf.py           PDF text extraction
+│   ├── chunk_text.py            Fixed-size chunking
+│   ├── build_index.py           FAISS index construction
+│   ├── retrieval.py             Dense retrieval (BGE-small + FAISS)
+│   ├── hybrid.py                BM25 sparse retrieval + Reciprocal Rank Fusion
+│   ├── reranker.py              Cross-encoder reranking
+│   ├── generate.py              Gemini generation with cited answer
+│   └── api.py                   FastAPI server (/health, /query)
+├── data/                        PDF + index artifacts (large files gitignored)
 ├── eval/
-│   ├── questions.jsonl   33-question ground-truth set
-│   ├── run_eval.py       Eval harness — Hit Rate, Recall, MRR per category
-│   └── results/          Timestamped eval results (committed for regression tracking)
+│   ├── questions.jsonl          33-question ground-truth set
+│   ├── run_eval.py              Retrieval eval — Hit Rate, Recall, MRR
+│   ├── check_regression.py      Retrieval regression gate
+│   ├── baseline.json            Retrieval metrics baseline for CI
+│   ├── run_gen_eval.py          Generation eval — faithfulness + refusal accuracy
+│   ├── check_gen_regression.py  Generation regression gate
+│   ├── gen_baseline.json        Generation metrics baseline for CI
+│   ├── results/                 Timestamped retrieval eval results
+│   └── gen_results/             Timestamped generation eval results
 ├── docs/
 │   ├── baseline_walkthrough.docx   System architecture + design decisions
-│   ├── eval_findings_day1.docx     What the eval measured and what to fix
+│   ├── eval_findings_day1.docx     Retrieval eval findings and fix roadmap
 │   └── img/                        README screenshots
-├── Dockerfile                      Multi-mode image (eval default, api stub)
-├── docker-entrypoint.sh            Routes `eval` vs `api` modes
-├── .dockerignore                   Excludes venv, secrets, build artifacts
+├── .github/workflows/eval.yml   CI — retrieval + generation gates on every PR
+├── Dockerfile                   Multi-mode image (eval / gen-eval / api)
+├── docker-entrypoint.sh         Routes run mode at container start
+├── .dockerignore
 ├── .env.example
-└── requirements.txt 
+└── requirements.txt
+```
+
+## Documentation
+
+- [Baseline walkthrough](docs/baseline_walkthrough.docx) — architecture, design decisions, known failure modes
+- [Day 1 eval findings](docs/eval_findings_day1.docx) — retrieval eval findings, diagnostic misses, evidence-backed fix roadmap
